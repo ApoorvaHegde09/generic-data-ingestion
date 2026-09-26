@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Data Ingestion Assistant</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: auto;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        #ingestionResult {
+            margin-top: 15px;
+            color: #333;
+        }
+
+        .chat-box {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+
+        .message {
+            margin-bottom: 12px;
+        }
+
+        .user {
+            font-weight: bold;
+        }
+
+        .ai {
+            font-weight: bold;
+            color: #2563eb;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #f1f5f9;
+        }
+
+    </style>
+</head>
+
+
+<body>
+
+<div class="container">
+
+    <h1>Data Ingestion Assistant</h1>
+
+    <div class="subtitle">
+        FastAPI + SQLite + Ollama + RAG
+    </div>
+
+
+    <!-- INGESTION -->
+
+    <div class="card">
+
+        <h2>Data Ingestion</h2>
+
+        <p>
+            Fetch data from the configured API sources.
+        </p>
+
+        <button onclick="runIngestion()">
+            Run Ingestion
+        </button>
+
+        <div id="ingestionResult"></div>
+
+    </div>
+
+
+    <!-- AI ASSISTANT -->
+
+    <div class="card">
+
+        <h2>AI Assistant</h2>
+
+        <div id="chatBox" class="chat-box"></div>
+
+        <div class="chat-input">
+
+            <input
+                type="text"
+                id="question"
+                placeholder="Ask about your ingestion system..."
+                onkeydown="handleEnter(event)"
+            >
+
+            <button onclick="askAI()">
+                Send
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- INGESTION HISTORY -->
+
+    <div class="card">
+
+        <h2>Recent Ingestion Runs</h2>
+
+        <button onclick="loadRuns()">
+            Refresh
+        </button>
+
+        <br><br>
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Run</th>
+                    <th>Status</th>
+                    <th>Total</th>
+                    <th>Success</th>
+                    <th>Failed</th>
+                </tr>
+            </thead>
+
+            <tbody id="runsTable">
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<script>
+
+const API_URL = "http://127.0.0.1:8000";
+
+
+async function runIngestion() {
+
+    const result = document.getElementById("ingestionResult");
+
+    result.innerText = "Running ingestion...";
+
+    try {
+
+        const response = await fetch(
+            `${API_URL}/ingest`,
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    sources: [
+                        "https://jsonplaceholder.typicode.com/users",
+                        "https://dummyjson.com/products"
+                    ]
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        result.innerText =
+            "Ingestion completed successfully.";
+
+        loadRuns();
+
+    } catch (error) {
+
+        result.innerText =
+            "Error running ingestion.";
+
+        console.error(error);
+    }
+}
+
+
+async function askAI() {
+
+    const input = document.getElementById("question");
+
+    const question = input.value.trim();
+
+    if (!question) {
+        return;
+    }
+
+    addMessage("You", question);
+
+    input.value = "";
+
+    try {
+
+        const response = await fetch(
+            `${API_URL}/ai/chat`,
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    question: question
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        addMessage("AI", data.answer);
+
+    } catch (error) {
+
+        addMessage(
+            "AI",
+            "Unable to connect to the AI assistant."
+        );
+
+        console.error(error);
+    }
+}
+
+
+function addMessage(sender, message) {
+
+    const chatBox =
+        document.getElementById("chatBox");
+
+    const div =
+        document.createElement("div");
+
+    div.className = "message";
+
+    div.innerHTML =
+        `<span class="${sender === "You" ? "user" : "ai"}">
+            ${sender}:
+        </span>
+        ${message}`;
+
+    chatBox.appendChild(div);
+
+    chatBox.scrollTop =
+        chatBox.scrollHeight;
+}
+
+
+function handleEnter(event) {
+
+    if (event.key === "Enter") {
+        askAI();
+    }
+}
+
+
+async function loadRuns() {
+
+    try {
+
+        const response =
+            await fetch(`${API_URL}/ingestion-runs`);
+
+        const runs =
+            await response.json();
+
+        const table =
+            document.getElementById("runsTable");
+
+        table.innerHTML = "";
+
+        runs.slice(0, 5).forEach(run => {
+
+            const row =
+                document.createElement("tr");
+
+            row.innerHTML = `
+                <td>${run.run_id}</td>
+                <td>${run.status}</td>
+                <td>${run.total_sources}</td>
+                <td>${run.successful_sources}</td>
+                <td>${run.failed_sources}</td>
+            `;
+
+            table.appendChild(row);
+
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Unable to load ingestion runs",
+            error
+        );
+
+    }
+}
+
+
+loadRuns();
+
+</script>
+
+</body>
+
+</html>

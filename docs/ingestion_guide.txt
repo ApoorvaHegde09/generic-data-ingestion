@@ -1,0 +1,33 @@
+Generic Data Ingestion System
+
+The Generic Data Ingestion System is a FastAPI-based application for fetching data from external APIs and storing the results in a SQLite database.
+
+The ingestion process accepts multiple API sources.
+
+Each ingestion creates an ingestion run.
+
+An ingestion run tracks:
+- total sources
+- successful sources
+- failed sources
+- start time
+- completion time
+- ingestion status
+
+Successfully fetched API responses are stored as records in the SQLite database.
+
+Failed API requests are recorded as failed sources in the ingestion run.
+
+The system provides an API endpoint to start an ingestion.
+
+The system also provides an endpoint to view stored records.
+
+The system provides an ingestion-runs endpoint to view ingestion history.
+
+The AI assistant can retrieve information about the latest ingestion, ingestion history, and failed ingestion runs.
+
+The AI assistant uses Ollama with the llama3.2:3b model.
+
+The AI assistant can use conversation history to understand follow-up questions.
+
+The application currently uses short-term in-memory conversation history.

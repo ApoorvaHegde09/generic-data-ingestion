@@ -11,7 +11,7 @@ def save_api_data(
 ):
     record = ApiData(
         source_name=source_name,
-        api_url=api_url,
+        api_url=str(api_url),
         status_code=status_code,
         response=json.dumps(response_data)
     )
@@ -22,6 +22,14 @@ def save_api_data(
 
     return record
 
-
 def get_all_records(db):
     return db.query(ApiData).all()
+
+def get_ingestion_runs(db):
+    from models import IngestionRun
+
+    return (
+        db.query(IngestionRun)
+        .order_by(IngestionRun.id.desc())
+        .all()
+    )

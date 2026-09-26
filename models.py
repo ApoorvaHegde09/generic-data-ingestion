@@ -17,3 +17,21 @@ class ApiData(Base):
     response = Column(Text, nullable=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class IngestionRun(Base):
+    __tablename__ = "ingestion_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    status = Column(Text, nullable=False)
+
+    total_sources = Column(Integer, nullable=False)
+
+    successful_sources = Column(Integer, nullable=False, default=0)
+
+    failed_sources = Column(Integer, nullable=False, default=0)
+
+    started_at = Column(DateTime, default=datetime.utcnow)
+
+    completed_at = Column(DateTime, nullable=True)

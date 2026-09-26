@@ -2,88 +2,96 @@
 
 ## Overview
 
-This project is a generic data ingestion service built using FastAPI and Python. The service accepts one or more public API endpoints, fetches data from them, and stores the responses in a SQLite database. The design focuses on extensibility so that new data sources can be added without changing the core ingestion workflow.
+A FastAPI-based data ingestion service that fetches data from public APIs and stores the responses in a SQLite database.
 
----
+The project was extended with a local AI assistant using Ollama, allowing users to ask questions about ingestion runs and project documentation.
 
 ## Features
 
-- Generic API ingestion
-- Supports multiple API endpoints in one request
-- REST API built using FastAPI
-- SQLite database using SQLAlchemy
-- Layered architecture
-- Request validation using Pydantic
-- Logging for API requests
-- Error handling with meaningful HTTP responses
-- Interactive Swagger documentation
-
----
+* Generic API ingestion
+* Multiple API sources in one request
+* FastAPI REST APIs
+* SQLite + SQLAlchemy
+* Ingestion run tracking
+* Success and failure tracking
+* Error handling and logging
+* Swagger documentation
+* Local AI assistant using Ollama
+* Tool-based database queries
+* Short-term conversation history
+* Lightweight RAG for documentation-based questions
+* Simple HTML/CSS/JavaScript frontend
 
 ## Architecture
 
-```
-Client
-   │
-   ▼
-FastAPI Router
-   │
-   ▼
-Ingestion Service
-   │
-   ▼
-API Service
-   │
-   ▼
+```text
 External APIs
-   │
-   ▼
-CRUD Layer
-   │
-   ▼
+      │
+      ▼
+   FastAPI
+      │
+      ▼
+Ingestion Service
+      │
+      ▼
 SQLite Database
+
+
+AI Assistant
+      │
+      ├── Database Tools
+      │
+      └── RAG
+           │
+           ▼
+      Ollama / Llama 3.2
 ```
-
----
-
-## Folder Structure
-
-```
-generic-data-ingestion/
-
-├── routers/
-│   └── ingest.py
-│
-├── services/
-│   ├── api_service.py
-│   └── ingestion_service.py
-│
-├── utils/
-│   └── logger.py
-│
-├── app.py
-├── crud.py
-├── database.py
-├── models.py
-├── schemas.py
-├── requirements.txt
-├── README.md
-└── .gitignore
-```
-
----
 
 ## APIs Used
 
-### JSONPlaceholder
+* JSONPlaceholder — https://jsonplaceholder.typicode.com/users
+* DummyJSON — https://dummyjson.com/products
 
-https://jsonplaceholder.typicode.com/users
+## API Endpoints
 
-### DummyJSON
+| Method | Endpoint          | Purpose                |
+| ------ | ----------------- | ---------------------- |
+| POST   | `/ingest`         | Start ingestion        |
+| GET    | `/records`        | View stored records    |
+| GET    | `/ingestion-runs` | View ingestion history |
+| POST   | `/ai/chat`        | Ask the AI assistant   |
 
-https://dummyjson.com/products
+Swagger:
 
----
+```text
+http://127.0.0.1:8000/docs
+```
+
+## AI Assistant
+
+The assistant uses **Ollama with Llama 3.2 3B**.
+
+It can answer questions such as:
+
+```text
+What was my last ingestion?
+```
+
+and follow-up questions such as:
+
+```text
+And how many were successful?
+```
+
+It can also answer documentation-based questions using RAG.
+
+Example:
+
+```text
+How does the ingestion system handle failed API requests?
+```
+
+The RAG pipeline uses **nomic-embed-text** embeddings and cosine similarity to retrieve relevant documentation.
 
 ## Running the Project
 
@@ -93,9 +101,9 @@ https://dummyjson.com/products
 python -m venv venv
 ```
 
-### Activate environment
+### Activate
 
-Windows
+Windows:
 
 ```bash
 venv\Scripts\activate
@@ -107,55 +115,50 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Start the server
+### Install Ollama models
+
+```bash
+ollama pull llama3.2:3b
+ollama pull nomic-embed-text
+```
+
+### Start backend
 
 ```bash
 uvicorn app:app --reload
 ```
 
-Swagger UI
+Swagger:
 
-```
+```text
 http://127.0.0.1:8000/docs
 ```
 
----
+### Start frontend
 
-## Sample Request
-
-```json
-{
-  "sources": [
-    {
-      "name": "users",
-      "url": "https://jsonplaceholder.typicode.com/users"
-    },
-    {
-      "name": "products",
-      "url": "https://dummyjson.com/products"
-    }
-  ]
-}
+```bash
+python -m http.server 5500 --directory frontend
 ```
 
----
+Open:
+
+```text
+http://127.0.0.1:5500
+```
 
 ## Design Decisions
 
-- Used FastAPI for lightweight REST APIs.
-- Used SQLAlchemy ORM for database interaction.
-- Used SQLite for simplicity and portability.
-- Separated Router, Service, and Database layers to improve maintainability.
-- Added logging for better debugging and monitoring.
-- Added error handling for external API failures.
-- Designed request schema to support multiple API sources.
-
----
+* FastAPI for REST APIs
+* SQLAlchemy for database interaction
+* SQLite for simplicity
+* Separate Router, Service, and Database layers
+* Ollama for local LLM inference
+* Lightweight Python-based RAG without an external vector database
 
 ## AI Usage
 
-AI tools were used to accelerate development and explore architectural ideas.
+AI tools were used during development to explore implementation approaches and architectural ideas.
 
-One incorrect suggestion generated during development resulted in a database schema mismatch after refactoring. This was identified by testing the API, reviewing the server traceback, recreating the SQLite database with the updated schema, and verifying the changes through end-to-end testing.
+One incorrect suggestion caused a database schema mismatch during development. The issue was identified through API testing and server logs, after which the schema was corrected and the application was tested end-to-end.
 
-The final implementation and all design decisions were manually reviewed and understood.
+The final implementation and design decisions were manually reviewed and understood.

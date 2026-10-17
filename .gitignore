@@ -1,7 +1,27 @@
-venv/
+
+# Python
 __pycache__/
-*.pyc
-data.db
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+
+# Environment variables and secrets
 .env
-.idea/
+.env.*
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploaded documents and extracted text
+docs/uploaded_document.txt
+temp.pdf
+uploads/
+
+# IDE and operating system
 .vscode/
+.idea/
+.DS_Store
+Thumbs.db

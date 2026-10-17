@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -8,7 +9,6 @@
     <title>Data Ingestion Assistant</title>
 
     <style>
-
         body {
             font-family: Arial, sans-serif;
             background: #f4f6f8;
@@ -51,9 +51,16 @@
             background: #1d4ed8;
         }
 
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
         #ingestionResult {
             margin-top: 15px;
             color: #333;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
 
         .chat-box {
@@ -68,6 +75,8 @@
 
         .message {
             margin-bottom: 12px;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
         }
 
         .user {
@@ -86,6 +95,7 @@
 
         .chat-input input {
             flex: 1;
+            min-width: 0;
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 6px;
@@ -107,9 +117,35 @@
             background: #f1f5f9;
         }
 
+        .hint {
+            color: #666;
+            font-size: 14px;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 12px;
+            }
+
+            .card {
+                padding: 15px;
+            }
+
+            .chat-input {
+                flex-direction: column;
+            }
+
+            table {
+                font-size: 13px;
+            }
+
+            th,
+            td {
+                padding: 7px;
+            }
+        }
     </style>
 </head>
-
 
 <body>
 
@@ -121,25 +157,29 @@
         FastAPI + SQLite + Ollama + RAG
     </div>
 
-
-    <!-- INGESTION -->
+    <!-- DATA INGESTION -->
 
     <div class="card">
 
         <h2>Data Ingestion</h2>
 
-        <p>
-            Fetch data from the configured API sources.
-        </p>
+        <p>Upload a PDF file to extract its text for AI retrieval.</p>
 
-        <button onclick="runIngestion()">
-            Run Ingestion
+        <input
+            type="file"
+            id="fileInput"
+            accept=".pdf,application/pdf"
+        >
+
+        <br><br>
+
+        <button id="uploadButton" onclick="uploadFile()">
+            Upload &amp; Ingest
         </button>
 
-        <div id="ingestionResult"></div>
+        <div id="ingestionResult" role="status" aria-live="polite"></div>
 
     </div>
-
 
     <!-- AI ASSISTANT -->
 
@@ -147,18 +187,22 @@
 
         <h2>AI Assistant</h2>
 
-        <div id="chatBox" class="chat-box"></div>
+        <div
+            id="chatBox"
+            class="chat-box"
+            aria-live="polite"
+        ></div>
 
         <div class="chat-input">
 
             <input
                 type="text"
                 id="question"
-                placeholder="Ask about your ingestion system..."
+                placeholder="Ask about your uploaded PDF or ingestion system..."
                 onkeydown="handleEnter(event)"
             >
 
-            <button onclick="askAI()">
+            <button id="sendButton" onclick="askAI()">
                 Send
             </button>
 
@@ -166,16 +210,13 @@
 
     </div>
 
-
     <!-- INGESTION HISTORY -->
 
     <div class="card">
 
         <h2>Recent Ingestion Runs</h2>
 
-        <button onclick="loadRuns()">
-            Refresh
-        </button>
+        <button onclick="loadRuns()">Refresh</button>
 
         <br><br>
 
@@ -191,8 +232,7 @@
                 </tr>
             </thead>
 
-            <tbody id="runsTable">
-            </tbody>
+            <tbody id="runsTable"></tbody>
 
         </table>
 
@@ -200,180 +240,219 @@
 
 </div>
 
-
 <script>
+    const API_URL = "http://127.0.0.1:8000";
 
-const API_URL = "http://127.0.0.1:8000";
 
+    // Upload a PDF and display the extracted text.
+    async function uploadFile() {
+        const fileInput = document.getElementById("fileInput");
+        const result = document.getElementById("ingestionResult");
+        const uploadButton = document.getElementById("uploadButton");
 
-async function runIngestion() {
+        if (!fileInput.files.length) {
+            result.innerText = "Please select a PDF file first.";
+            return;
+        }
 
-    const result = document.getElementById("ingestionResult");
+        const file = fileInput.files[0];
 
-    result.innerText = "Running ingestion...";
+        if (!file.name.toLowerCase().endsWith(".pdf")) {
+            result.innerText = "Please select a PDF file.";
+            return;
+        }
 
-    try {
+        const formData = new FormData();
+        formData.append("file", file);
 
-        const response = await fetch(
-            `${API_URL}/ingest`,
-            {
+        uploadButton.disabled = true;
+        result.innerText = `Uploading ${file.name} and extracting text...`;
+
+        try {
+            const response = await fetch(`${API_URL}/upload`, {
                 method: "POST",
+                body: formData
+            });
 
-                headers: {
-                    "Content-Type": "application/json"
-                },
+            const data = await response.json();
 
-                body: JSON.stringify({
-                    sources: [
-                        "https://jsonplaceholder.typicode.com/users",
-                        "https://dummyjson.com/products"
-                    ]
-                })
+            if (!response.ok) {
+                throw new Error(
+                    data.detail || `Upload failed: HTTP ${response.status}`
+                );
             }
-        );
 
-        const data = await response.json();
+            const preview =
+                data.extracted_text_preview ??
+                data.text ??
+                "(The backend did not return a text preview.)";
 
-        result.innerText =
-            "Ingestion completed successfully.";
+            result.innerText =
+                `Success: ${data.filename}\n\n` +
+                `Message: ${data.message}\n\n` +
+                `Pages: ${data.pages ?? "Not provided"}\n` +
+                `Characters extracted: ${data.characters_extracted ?? 0}\n\n` +
+                `Extracted text preview:\n${preview}`;
 
-        loadRuns();
+            console.log("Upload response:", data);
 
-    } catch (error) {
+        } catch (error) {
+            result.innerText = `Upload error: ${error.message}`;
+            console.error("Upload failed:", error);
 
-        result.innerText =
-            "Error running ingestion.";
-
-        console.error(error);
-    }
-}
-
-
-async function askAI() {
-
-    const input = document.getElementById("question");
-
-    const question = input.value.trim();
-
-    if (!question) {
-        return;
+        } finally {
+            uploadButton.disabled = false;
+        }
     }
 
-    addMessage("You", question);
 
-    input.value = "";
+    // Ask the AI assistant a question.
+    async function askAI() {
+        const input = document.getElementById("question");
+        const sendButton = document.getElementById("sendButton");
 
-    try {
+        const question = input.value.trim();
 
-        const response = await fetch(
-            `${API_URL}/ai/chat`,
-            {
+        if (!question) {
+            return;
+        }
+
+        addMessage("You", question);
+        input.value = "";
+
+        sendButton.disabled = true;
+
+        try {
+            const response = await fetch(`${API_URL}/ai/chat`, {
                 method: "POST",
-
                 headers: {
                     "Content-Type": "application/json"
                 },
-
                 body: JSON.stringify({
                     question: question
                 })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    data.detail || `AI request failed: HTTP ${response.status}`
+                );
             }
-        );
 
-        const data = await response.json();
+            addMessage(
+                "AI",
+                data.answer || "The AI assistant returned no answer."
+            );
 
-        addMessage("AI", data.answer);
+        } catch (error) {
+            addMessage("AI", `Error: ${error.message}`);
+            console.error("AI request failed:", error);
 
-    } catch (error) {
-
-        addMessage(
-            "AI",
-            "Unable to connect to the AI assistant."
-        );
-
-        console.error(error);
+        } finally {
+            sendButton.disabled = false;
+            input.focus();
+        }
     }
-}
 
 
-function addMessage(sender, message) {
+    // Safely display chat messages as text.
+    function addMessage(sender, message) {
+        const chatBox = document.getElementById("chatBox");
 
-    const chatBox =
-        document.getElementById("chatBox");
+        const div = document.createElement("div");
+        div.className = "message";
 
-    const div =
-        document.createElement("div");
+        const label = document.createElement("span");
+        label.className = sender === "You" ? "user" : "ai";
+        label.textContent = `${sender}: `;
 
-    div.className = "message";
+        const content = document.createElement("span");
+        content.textContent = String(message ?? "");
 
-    div.innerHTML =
-        `<span class="${sender === "You" ? "user" : "ai"}">
-            ${sender}:
-        </span>
-        ${message}`;
+        div.appendChild(label);
+        div.appendChild(content);
 
-    chatBox.appendChild(div);
-
-    chatBox.scrollTop =
-        chatBox.scrollHeight;
-}
-
-
-function handleEnter(event) {
-
-    if (event.key === "Enter") {
-        askAI();
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
     }
-}
 
 
-async function loadRuns() {
+    // Send a question when Enter is pressed.
+    function handleEnter(event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            askAI();
+        }
+    }
 
-    try {
 
-        const response =
-            await fetch(`${API_URL}/ingestion-runs`);
+    // Load recent ingestion runs.
+    async function loadRuns() {
+        const table = document.getElementById("runsTable");
 
-        const runs =
-            await response.json();
+        try {
+            const response = await fetch(`${API_URL}/ingestion-runs`);
 
-        const table =
-            document.getElementById("runsTable");
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
 
-        table.innerHTML = "";
+            const runs = await response.json();
 
-        runs.slice(0, 5).forEach(run => {
+            table.replaceChildren();
 
-            const row =
-                document.createElement("tr");
+            if (!Array.isArray(runs) || runs.length === 0) {
+                const row = document.createElement("tr");
+                const cell = document.createElement("td");
 
-            row.innerHTML = `
-                <td>${run.run_id}</td>
-                <td>${run.status}</td>
-                <td>${run.total_sources}</td>
-                <td>${run.successful_sources}</td>
-                <td>${run.failed_sources}</td>
-            `;
+                cell.colSpan = 5;
+                cell.textContent = "No ingestion runs found.";
 
+                row.appendChild(cell);
+                table.appendChild(row);
+                return;
+            }
+
+            runs.slice(0, 5).forEach(run => {
+                const row = document.createElement("tr");
+
+                [
+                    run.run_id,
+                    run.status,
+                    run.total_sources,
+                    run.successful_sources,
+                    run.failed_sources
+                ].forEach(value => {
+                    const cell = document.createElement("td");
+                    cell.textContent = String(value ?? "-");
+                    row.appendChild(cell);
+                });
+
+                table.appendChild(row);
+            });
+
+        } catch (error) {
+            console.error("Unable to load ingestion runs:", error);
+
+            table.replaceChildren();
+
+            const row = document.createElement("tr");
+            const cell = document.createElement("td");
+
+            cell.colSpan = 5;
+            cell.textContent = "Unable to load ingestion history.";
+
+            row.appendChild(cell);
             table.appendChild(row);
-
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Unable to load ingestion runs",
-            error
-        );
-
+        }
     }
-}
 
 
-loadRuns();
-
+    // Load history when the page opens.
+    loadRuns();
 </script>
 
 </body>
-
 </html>

@@ -22,143 +22,166 @@ The project was extended with a local AI assistant using Ollama, allowing users 
 * Lightweight RAG for documentation-based questions
 * Simple HTML/CSS/JavaScript frontend
 
+# Generic Data Ingestion Assistant
+
+A Python-based data ingestion application built with FastAPI, SQLite, and Ollama. It ingests data from public APIs, tracks ingestion results, and uses Retrieval-Augmented Generation (RAG) to answer questions about project documentation and uploaded PDF documents.
+
+## Features
+
+- **Generic API ingestion:** Fetches data from multiple API endpoints.
+- **SQLite storage:** Stores ingested records and ingestion run details.
+- **Ingestion monitoring:** Tracks successful and failed sources.
+- **PDF upload:** Extracts text from uploaded PDF documents.
+- **AI Assistant:** Answers questions using local LLMs and RAG.
+- **Semantic retrieval:** Uses embeddings and cosine similarity to retrieve relevant document content.
+- **Web interface:** Provides PDF upload, AI chat, and ingestion history.
+
+## Tech Stack
+
+- Python
+- FastAPI
+- SQLite
+- SQLAlchemy
+- Ollama
+- Llama 3.2 (`llama3.2:3b`)
+- `nomic-embed-text`
+- PyPDF
+- HTML, CSS, JavaScript
+
 ## Architecture
 
 ```text
-External APIs
-      │
-      ▼
-   FastAPI
-      │
-      ▼
-Ingestion Service
-      │
-      ▼
-SQLite Database
-
-
-AI Assistant
-      │
-      ├── Database Tools
-      │
-      └── RAG
-           │
-           ▼
-      Ollama / Llama 3.2
+Public APIs / Uploaded PDF
+           |
+           v
+    FastAPI Backend
+           |
+     +-----+------+
+     |            |
+     v            v
+ API Ingestion  PDF Text Extraction
+     |            |
+     v            v
+   SQLite    Extracted Text
+                  |
+                  v
+             RAG Retrieval
+                  |
+                  v
+             Ollama LLM
+                  |
+                  v
+             AI Response
 ```
 
-## APIs Used
+## Prerequisites
 
-* JSONPlaceholder — https://jsonplaceholder.typicode.com/users
-* DummyJSON — https://dummyjson.com/products
+Install the following:
 
-## API Endpoints
+- Python 3.10 or a compatible version for your dependencies
+- Git
+- Ollama
 
-| Method | Endpoint          | Purpose                |
-| ------ | ----------------- | ---------------------- |
-| POST   | `/ingest`         | Start ingestion        |
-| GET    | `/records`        | View stored records    |
-| GET    | `/ingestion-runs` | View ingestion history |
-| POST   | `/ai/chat`        | Ask the AI assistant   |
+Download Ollama from: https://ollama.com/
 
-Swagger:
+## Setup and Run
 
-```text
-http://127.0.0.1:8000/docs
+### 1. Clone the repository
+
+```powershell
+git clone https://github.com/ApoorvaHegde09/generic-data-ingestion.git
+cd generic-data-ingestion
 ```
 
-## AI Assistant
+### 2. Create and activate the virtual environment
 
-The assistant uses **Ollama with Llama 3.2 3B**.
-
-It can answer questions such as:
-
-```text
-What was my last ingestion?
-```
-
-and follow-up questions such as:
-
-```text
-And how many were successful?
-```
-
-It can also answer documentation-based questions using RAG.
-
-Example:
-
-```text
-How does the ingestion system handle failed API requests?
-```
-
-The RAG pipeline uses **nomic-embed-text** embeddings and cosine similarity to retrieve relevant documentation.
-
-## Running the Project
-
-### Create virtual environment
-
-```bash
+```powershell
 python -m venv venv
+.\venv\Scripts\Activate.ps1
 ```
 
-### Activate
+### 3. Install dependencies
 
-Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-### Install dependencies
-
-```bash
+```powershell
 pip install -r requirements.txt
 ```
 
-### Install Ollama models
+### 4. Set up Ollama
 
-```bash
+Install Ollama from https://ollama.com/ and make sure it is running.
+
+Download the required models:
+
+```powershell
 ollama pull llama3.2:3b
 ollama pull nomic-embed-text
 ```
 
-### Start backend
+### 5. Start the application
 
-```bash
-uvicorn app:app --reload
+From the project root, run:
+
+```powershell
+.\start_project.ps1
 ```
 
-Swagger:
+The startup script launches the application components according to its configuration.
 
-```text
-http://127.0.0.1:8000/docs
+If PowerShell blocks the script, try:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start_project.ps1
 ```
 
-### Start frontend
+### 6. Open the application
 
-```bash
-python -m http.server 5500 --directory frontend
-```
+- **Frontend:** `http://127.0.0.1:5500`
+- **Backend API:** `http://127.0.0.1:8000`
+- **API documentation:** `http://127.0.0.1:8000/docs`
 
-Open:
+Make sure the URLs and ports match the configuration in `start_project.ps1`.
 
-```text
-http://127.0.0.1:5500
-```
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/ingest` | Ingest data from API sources |
+| GET | `/records` | Retrieve stored records |
+| GET | `/ingestion-runs` | View ingestion history |
+| POST | `/upload` | Upload a PDF and extract its text |
+| POST | `/ai/chat` | Ask the AI Assistant a question |
+
+## Example AI Questions
+
+After uploading a text-based PDF, try asking:
+
+- Summarize my uploaded PDF.
+- Which technologies are mentioned in my uploaded document?
+- How many records were processed, and how many failed?
+- Explain the data pipeline mentioned in my PDF.
+- What was my latest ingestion run?
+- How many ingestion runs have I performed?
+- Which ingestion runs had failures?
 
 ## Design Decisions
 
-* FastAPI for REST APIs
-* SQLAlchemy for database interaction
-* SQLite for simplicity
-* Separate Router, Service, and Database layers
-* Ollama for local LLM inference
-* Lightweight Python-based RAG without an external vector database
+- **FastAPI** provides lightweight REST endpoints.
+- **SQLite** provides simple local persistence.
+- **Ollama** runs the language and embedding models locally.
+- **RAG** retrieves relevant document text before generating answers.
+- **Separate frontend and backend** allow the user interface and API service to run independently.
+
+## Current Limitations
+
+- PDF text extraction supports selectable text; scanned PDFs may require OCR.
+- The current document storage supports one latest uploaded PDF text file.
+- Uploaded text and the SQLite database are stored locally.
+- Ollama must be running locally for AI functionality.
+- This project is configured for local development, not production deployment.
+
 
 ## AI Usage
 
-AI tools were used during development to explore implementation approaches and architectural ideas.
+AI tools were used to assist with implementation and debugging. The project integrates local language models and retrieval techniques to provide AI-powered document question answering.
 
-One incorrect suggestion caused a database schema mismatch during development. The issue was identified through API testing and server logs, after which the schema was corrected and the application was tested end-to-end.
 
-The final implementation and design decisions were manually reviewed and understood.

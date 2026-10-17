@@ -78,4 +78,7 @@ def get_failed_ingestions(db):
             )
         })
 
-    return result
+    return {
+    "total_runs": len(result),
+    "runs": result
+}

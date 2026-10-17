@@ -1,115 +1,193 @@
-import ollama
-from ai.rag import retrieve_context
 
+import ollama
+
+from ai.rag import retrieve_context
 from ai.tools import (
     get_latest_ingestion_run,
     get_ingestion_history,
-    get_failed_ingestions
+    get_failed_ingestions,
+)
+
+
+# Connect to the local Ollama server
+ollama_client = ollama.Client(
+    host="http://127.0.0.1:11434"
 )
 
 conversation_history = []
 
-def process_question(question: str, db):
 
-    # Ask the AI which tool is needed
-    tool_prompt = f"""
+def select_tool(question: str) -> str:
+    q = question.lower().strip().rstrip("?.!")
+
+    # Questions about uploaded documents
+    uploaded_document_keywords = [
+        "uploaded document",
+        "uploaded file",
+        "uploaded pdf",
+        "my document",
+        "my pdf",
+        "my file",
+        "technologies mentioned",
+        "technologies in",
+        "what does my document",
+        "what does the document",
+        "summarize my document",
+        "summarize my uploaded",
+        "content of my document",
+        "information in my document",
+        "extract from my document",
+    ]
+
+    if any(keyword in q for keyword in uploaded_document_keywords):
+        return "documentation_rag"
+
+    # Questions about project documentation and system behavior
+    documentation_keywords = [
+        "how does",
+        "how do",
+        "how is",
+        "how are",
+        "how can",
+        "what happens",
+        "how the system",
+        "how the ingestion",
+        "what technology",
+        "how api responses",
+        "project documentation",
+        "how does the ai assistant",
+        "what does an ingestion run track",
+        "how are api responses stored",
+        "which technologies are used in this project",
+        "explain the project",
+    ]
+
+    if any(keyword in q for keyword in documentation_keywords):
+        return "documentation_rag"
+
+    # Questions about all or previous ingestion runs
+    history_keywords = [
+        "ingestion history",
+        "how many ingestion runs",
+        "number of ingestion runs",
+        "count of ingestion runs",
+        "how many runs",
+        "all ingestion runs",
+        "all runs",
+        "previous ingestion runs",
+        "previous runs",
+        "show all runs",
+        "show me all runs",
+        "show me my ingestion history",
+        "show my ingestion history",
+    ]
+
+    if any(keyword in q for keyword in history_keywords):
+        return "ingestion_history"
+
+    # Questions about failed ingestion runs
+    failed_keywords = [
+        "which runs failed",
+        "which ingestion runs",
+        "failed ingestion runs",
+        "runs had failures",
+        "show failed runs",
+        "show me the failed runs",
+        "which ingestion runs had failures",
+    ]
+
+    if any(keyword in q for keyword in failed_keywords):
+        return "failed_ingestions"
+
+    # Questions about the latest ingestion
+    latest_keywords = [
+        "latest ingestion",
+        "last ingestion",
+        "most recent ingestion",
+        "last ingestion run",
+        "latest ingestion run",
+    ]
+
+    if any(keyword in q for keyword in latest_keywords):
+        return "latest_ingestion"
+
+    return "ai_fallback"
+
+
+def process_question(question: str, db):
+    selected_tool = select_tool(question)
+
+    # Use Ollama to classify questions not matched by keywords
+    if selected_tool == "ai_fallback":
+        tool_prompt = f"""
 You are a tool selection assistant.
 
-Your job is to choose exactly ONE tool for the user's current question.
-
-Conversation history:
-{conversation_history}
-
-Current user question:
+User question:
 {question}
 
-Available tools:
+Choose exactly ONE tool.
 
-1. latest_ingestion
+latest_ingestion:
+Questions about the most recent ingestion run.
 
-Use this when the user asks about the MOST RECENT ingestion run.
+ingestion_history:
+Questions about the number of runs, all runs,
+multiple runs, or previous ingestion runs.
 
-Examples:
-- What was my last ingestion?
-- What was the latest ingestion?
-- How many sources were successful in the latest run?
-- How many failed in the last ingestion?
-- And how many were successful?
-- What about that run?
+failed_ingestions:
+Questions asking which ingestion runs had failures.
 
-2. ingestion_history
+documentation_rag:
+Questions about uploaded documents, PDFs, project documentation,
+system behavior, technologies, implementation, or API behavior.
 
-Use this when the user asks for MULTIPLE ingestion runs or the complete history.
+Rules:
+- Questions about an uploaded file must use documentation_rag.
+- Questions asking how many runs were performed must use
+  ingestion_history.
+- Questions about the latest run must use latest_ingestion.
+- Do not confuse the number of sources with the number of runs.
+- Return only one exact tool name.
 
-Examples:
-- Show my ingestion history.
-- Show all ingestion runs.
-- What were my previous ingestion runs?
-- Show all the runs.
-
-3. failed_ingestions
-
-Use this ONLY when the user asks which INGESTION RUNS had failures.
-
-Examples:
-- Which ingestion runs had failures?
-- Show me the failed ingestion runs.
-- Which runs failed?
-
-IMPORTANT:
-Do NOT choose failed_ingestions just because the question contains the word "failed".
-
-4. documentation_rag
-
-Use this when the user asks HOW THE SYSTEM WORKS or asks about information contained in the project documentation.
-
-Examples:
-- How does the ingestion system work?
-- How does the ingestion system handle failed API requests?
-- What happens when an API request fails?
-- What does an ingestion run track?
-- How does the AI assistant work?
-- What technology does the AI assistant use?
-- How are API responses stored?
-- How does the ingestion process work?
-
-IMPORTANT:
-Questions about HOW the system works should use documentation_rag.
-
-Questions about WHICH RUNS failed should use failed_ingestions.
-
-Questions about the LATEST RUN should use latest_ingestion.
-
-Return ONLY one exact value:
-
+Allowed tools:
 latest_ingestion
 ingestion_history
 failed_ingestions
 documentation_rag
 """
 
-    tool_response = ollama.chat(
-        model="llama3.2:3b",
-        messages=[
-            {
-                "role": "user",
-                "content": tool_prompt
-            }
-        ]
-    )
+        tool_response = ollama_client.chat(
+            model="llama3.2:3b",
+            messages=[
+                {
+                    "role": "user",
+                    "content": tool_prompt,
+                }
+            ],
+        )
 
-    selected_tool = tool_response["message"]["content"].strip()
+        candidate = (
+            tool_response["message"]["content"]
+            .strip()
+            .lower()
+        )
 
-    # Validate the AI's tool selection
-    allowed_tools = {
-    "latest_ingestion",
-    "ingestion_history",
-    "failed_ingestions",
-    "documentation_rag"
-}
+        allowed_tools = {
+            "latest_ingestion",
+            "ingestion_history",
+            "failed_ingestions",
+            "documentation_rag",
+        }
 
-    if selected_tool not in allowed_tools:
-        selected_tool = "latest_ingestion"
+        # Handle extra whitespace or explanatory text in classification
+        selected_tool = next(
+            (
+                tool
+                for tool in allowed_tools
+                if candidate == tool
+            ),
+            "latest_ingestion",
+        )
 
     # Execute the selected tool
     if selected_tool == "ingestion_history":
@@ -121,67 +199,95 @@ documentation_rag
     elif selected_tool == "documentation_rag":
         data = retrieve_context(question)
 
+    elif selected_tool == "latest_ingestion":
+        data = get_latest_ingestion_run(db)
+
     else:
         data = get_latest_ingestion_run(db)
-    # Give the tool result to the AI
+        selected_tool = "latest_ingestion"
+
+    # Generate the final answer
     answer_prompt = f"""
-You are a Data Engineering Assistant.
+You are a helpful Data Engineering Assistant.
 
-The system has already retrieved the correct data needed to answer the user's question.
+Recent conversation:
+{conversation_history[-5:]}
 
-Conversation history:
-{conversation_history}
-
-User question:
+Current user question:
 {question}
 
-Retrieved data:
+Retrieved information:
 {data}
 
-Answer the user's question directly using the retrieved data.
+Answer the current question directly using the retrieved information.
 
-Rules:
-- Treat the retrieved data as the source of truth.
-- Do not say you do not have information when the answer exists in the retrieved data.
-- Do not mention the tool or retrieval process.
-- Do not use outside knowledge.
-- Do not invent information.
-- If the user asks about the latest ingestion, use the values from the retrieved data.
-- If the user asks how many sources were successful, use successful_sources.
-- If the user asks how many sources failed, use failed_sources.
-- If the user asks for the run status, use status.
-- Keep the answer short and natural.
+General rules:
+- Treat retrieved information as the source of truth.
+- Never invent facts, counts, technologies, or document contents.
+- Do not describe internal tools or retrieval steps.
+- Do not begin with phrases like "Here is the answer to your question".
+- Keep answers clear, concise, and natural.
+- If the retrieved information does not contain the answer,
+  say that the information could not be found.
+- Use conversation history only to understand follow-up questions.
+  Do not use it to invent missing facts.
+
+Ingestion rules:
+- One ingestion run means one execution of ingestion.
+- Sources are the APIs or inputs processed during a run.
+- Never confuse the number of runs with the number of sources.
+- For total runs, count the entries in the history data.
+- If total_runs is provided, use that value.
+- For successful runs, count runs whose status is success.
+- For successful sources, use successful_sources.
+- For failed sources, use failed_sources.
+- For history questions, summarize the actual runs returned.
+- Do not assume a list of one run represents multiple runs.
+
+Document and project documentation rules:
+- Answer document questions using only the retrieved text.
+- List technologies only when they appear in the retrieved text.
+- Do not substitute ingestion statistics for document contents.
+- If the retrieved text does not contain the requested details,
+  explain that the information was not found in the retrieved text.
+- Do not claim to have read an entire uploaded file unless its
+  contents are actually present in the retrieved information.
 
 Example:
+If the retrieved information is:
+{{'run_id': 1, 'status': 'success', 'total_sources': 2,
+  'successful_sources': 2, 'failed_sources': 0}}
 
-Retrieved data:
-{{'run_id': 1, 'status': 'success', 'total_sources': 2, 'successful_sources': 2, 'failed_sources': 0}}
-
-Question:
-What was my last ingestion?
-
-Good answer:
-The latest ingestion was run 1 and completed successfully. It processed 2 sources, with all 2 successful and 0 failed.
+For "What was my latest ingestion run?", answer:
+"The latest ingestion was run 1 and completed successfully.
+It processed 2 sources, with 2 successful and 0 failed."
 """
 
-    answer_response = ollama.chat(
+    answer_response = ollama_client.chat(
         model="llama3.2:3b",
         messages=[
             {
                 "role": "user",
-                "content": answer_prompt
+                "content": answer_prompt,
             }
-        ]
+        ],
     )
 
-    answer = answer_response["message"]["content"]
+    answer = answer_response["message"]["content"].strip()
 
-    conversation_history.append({
-        "user": question,
-        "assistant": answer
-    })
+    # Store the recent conversation
+    conversation_history.append(
+        {
+            "user": question,
+            "assistant": answer,
+        }
+    )
+
+    # Keep only the last 10 conversation exchanges
+    if len(conversation_history) > 10:
+        del conversation_history[:-10]
 
     return {
         "answer": answer,
-        "tool_used": selected_tool
+        "tool_used": selected_tool,
     }
